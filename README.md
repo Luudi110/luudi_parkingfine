@@ -1,7 +1,7 @@
 # Luudi Parking Fine
 
 **Resource Name:** `luudi_parkingfine`  
-**Author:** Luudi  
+**Author:** Luudi_110  
 **Description:** Parking fine system by Luudi – issue and manage parking tickets efficiently.
 
 ---
@@ -18,6 +18,6 @@
   - Date & Time (auto-filled, editable)
 - Confirmation modal before issuing fines
 - Notifications on successful issuance
-- Responsive and modern UI built with Mantine
+- Responsive and modern UI built with OX_LIB
 
 ---
