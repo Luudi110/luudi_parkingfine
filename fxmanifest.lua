@@ -1,7 +1,7 @@
 fx_version 'cerulean'
 game 'gta5'
 
-author 'Luudi'
+author 'Luudi_110'
 description 'ESX Parking Fine System med ox_lib integration'
 version '1.0.0'
 
