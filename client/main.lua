@@ -1,8 +1,6 @@
--- Lokale variabler
 local PlayerData = {}
 local isAuthorized = false
 
--- Hent ESX objekt og playerdata
 CreateThread(function()
     ESX = exports['es_extended']:getSharedObject()
     
@@ -14,7 +12,6 @@ CreateThread(function()
     CheckAuthorization()
 end)
 
--- Tjek om spilleren har autoriseret job
 function CheckAuthorization()
     if PlayerData.job and Config.AuthorizedJobs[PlayerData.job.name] then
         isAuthorized = true
@@ -23,13 +20,11 @@ function CheckAuthorization()
     end
 end
 
--- Opdater playerdata når job ændres
 RegisterNetEvent('esx:setJob', function(job)
     PlayerData.job = job
     CheckAuthorization()
 end)
 
--- Registrer keybind hvis aktiveret
 if Config.UseKeybind then
     lib.registerContext({
         id = 'parkingfine_keybind',
@@ -53,14 +48,12 @@ if Config.UseKeybind then
     RegisterKeyMapping('parkingfine_open', Config.KeybindDescription, 'keyboard', Config.Keybind)
 end
 
--- Funktion til at finde nærmeste køretøj
 function GetClosestVehicle()
     local playerPed = PlayerPedId()
     local playerCoords = GetEntityCoords(playerPed)
     local closestVehicle = nil
     local closestDistance = Config.MaxDistance
     
-    -- Hent alle køretøjer i nærheden
     local vehicles = GetGamePool('CVehicle')
     
     for _, vehicle in ipairs(vehicles) do
@@ -78,7 +71,6 @@ function GetClosestVehicle()
     return closestVehicle
 end
 
--- Funktion til at få nummerplade fra køretøj
 function GetVehiclePlate(vehicle)
     if vehicle and DoesEntityExist(vehicle) then
         return GetVehicleNumberPlateText(vehicle)
@@ -86,7 +78,6 @@ function GetVehiclePlate(vehicle)
     return nil
 end
 
--- Åbn hovedmenu for parkeringsbøder
 function OpenParkingFineMenu()
     if not isAuthorized then
         lib.notify({
@@ -126,9 +117,10 @@ function OpenParkingFineMenu()
     lib.showContext('parkingfine_main')
 end
 
--- Menu til at udstede en bøde
-function OpenIssueFineMenu()
-    local targetVehicle = GetClosestVehicle()
+function OpenIssueFineMenu(targetVehicle)
+    if not targetVehicle or not DoesEntityExist(targetVehicle) then
+        targetVehicle = GetClosestVehicle()
+    end
     
     if not targetVehicle then
         lib.notify({
@@ -152,7 +144,6 @@ function OpenIssueFineMenu()
         return
     end
     
-    -- Input dialog med ox_lib
     local input = lib.inputDialog('Udsted Parkeringsbøde', {
         {
             type = 'input',
@@ -182,13 +173,12 @@ function OpenIssueFineMenu()
     })
     
     if not input then
-        return -- Spilleren annullerede
+        return
     end
     
     local amount = tonumber(input[2])
     local reason = input[3]
     
-    -- Valider input
     if not amount or amount < Config.MinFineAmount or amount > Config.MaxFineAmount then
         lib.notify({
             title = 'Ugyldigt beløb',
@@ -209,7 +199,6 @@ function OpenIssueFineMenu()
         return
     end
     
-    -- Send data til server
     TriggerServerEvent('luudi_parkingfine:server:issueFine', {
         vehiclePlate = vehiclePlate,
         amount = amount,
@@ -217,7 +206,35 @@ function OpenIssueFineMenu()
     })
 end
 
--- Menu til at vise liste over bøder
+-- ox_target: Tilføj eye-target på alle køretøjer for betjente
+CreateThread(function()
+    -- Vent til ESX/autorisation er klar
+    while ESX == nil or PlayerData.job == nil do
+        Wait(200)
+    end
+
+    if exports['ox_target'] then
+        exports.ox_target:addGlobalVehicle({
+            {
+                name = 'luudi_parkingfine_issue',
+                icon = 'fa-solid fa-ticket',
+                label = 'Udsted parkeringsbøde',
+                distance = 2.5,
+                canInteract = function(entity, distance, coords, name, bone)
+                    return isAuthorized and DoesEntityExist(entity)
+                end,
+                onSelect = function(data)
+                    if not isAuthorized then
+                        lib.notify({ title = 'Ingen adgang', description = 'Du er ikke autoriseret', type = 'error', duration = Config.NotificationDuration })
+                        return
+                    end
+                    OpenIssueFineMenu(data.entity)
+                end
+            }
+        })
+    end
+end)
+
 function OpenFinesListMenu()
     ESX.TriggerServerCallback('luudi_parkingfine:server:getFines', function(fines)
         if not fines or #fines == 0 then
@@ -263,7 +280,6 @@ function OpenFinesListMenu()
     end)
 end
 
--- Menu til at vise detaljer om en specifik bøde
 function OpenFineDetailsMenu(fine)
     local options = {}
     
@@ -299,12 +315,10 @@ function OpenFineDetailsMenu(fine)
     lib.showContext('parkingfine_details')
 end
 
--- Event til at åbne menu fra eksterne scripts
 RegisterNetEvent('luudi_parkingfine:client:openMenu', function()
     OpenParkingFineMenu()
 end)
 
--- Notifikation når en bøde modtages
 RegisterNetEvent('luudi_parkingfine:client:receiveFine', function(data)
     lib.notify({
         title = 'Parkeringsbøde Modtaget',
@@ -319,7 +333,6 @@ RegisterNetEvent('luudi_parkingfine:client:receiveFine', function(data)
     })
 end)
 
--- Notifikation når en bøde er udstedt (til betjenten)
 RegisterNetEvent('luudi_parkingfine:client:fineIssued', function(data)
     lib.notify({
         title = 'Bøde Udstedt',
@@ -333,7 +346,6 @@ RegisterNetEvent('luudi_parkingfine:client:fineIssued', function(data)
     })
 end)
 
--- Debug kommando
 if Config.Debug then
     RegisterCommand('parkingfine_debug', function()
         print('isAuthorized:', isAuthorized)

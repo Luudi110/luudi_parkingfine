@@ -1,7 +1,7 @@
 fx_version 'cerulean'
 game 'gta5'
 
-author 'Luudi_110'
+author 'Luudi'
 description 'ESX Parking Fine System med ox_lib integration'
 version '1.0.0'
 
@@ -29,5 +29,6 @@ files {
 dependencies {
     'es_extended',
     'ox_lib',
-    'oxmysql'
+    'oxmysql',
+    'ox_target'
 }

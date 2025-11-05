@@ -14,9 +14,8 @@ Config.AuthorizedJobs = {
 Config.MinFineAmount = 100        -- Minimum bødebeløb
 Config.MaxFineAmount = 50000      -- Maksimum bødebeløb
 
--- Keybind indstillinger
 Config.UseKeybind = true          -- Skal der bruges keybind til at åbne menu?
-Config.Keybind = 'F7'             -- Tastekombination til at åbne menu
+Config.UseKeybind = false
 Config.KeybindDescription = 'Åbn Parkeringsbøde Menu'
 
 -- Database indstillinger

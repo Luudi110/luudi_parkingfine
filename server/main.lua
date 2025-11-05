@@ -1,7 +1,5 @@
--- Hent ESX objekt
 ESX = exports['es_extended']:getSharedObject()
 
--- Funktion til at validere om en spiller har autoriseret job
 function IsPlayerAuthorized(source)
     local xPlayer = ESX.GetPlayerFromId(source)
     
@@ -12,7 +10,6 @@ function IsPlayerAuthorized(source)
     return Config.AuthorizedJobs[xPlayer.job.name] == true
 end
 
--- Funktion til at logge handlinger (kan integreres med ESX logs)
 function LogAction(action, source, data)
     if Config.Debug then
         print(string.format('[Luudi_ParkingFine] %s - Source: %s - Data: %s', 
@@ -21,16 +18,11 @@ function LogAction(action, source, data)
             json.encode(data)
         ))
     end
-    
-    -- Her kan du integrere med ESX logs eller andre log-systemer
-    -- Eksempel: TriggerEvent('esx:log', action, source, data)
 end
 
--- Event til at udstede en parkeringsbøde
 RegisterNetEvent('luudi_parkingfine:server:issueFine', function(data)
     local source = source
     
-    -- Valider at afsenderen er autoriseret
     if not IsPlayerAuthorized(source) then
         TriggerClientEvent('ox_lib:notify', source, {
             title = 'Ingen adgang',
@@ -43,7 +35,6 @@ RegisterNetEvent('luudi_parkingfine:server:issueFine', function(data)
     
     local xPlayer = ESX.GetPlayerFromId(source)
     
-    -- Valider nummerplade
     if not data.vehiclePlate or data.vehiclePlate == '' then
         TriggerClientEvent('ox_lib:notify', source, {
             title = 'Fejl',
@@ -54,15 +45,12 @@ RegisterNetEvent('luudi_parkingfine:server:issueFine', function(data)
         return
     end
     
-    -- Fjern mellemrum fra nummerplade
     local vehiclePlate = string.gsub(data.vehiclePlate, '%s+', '')
     
     if Config.Debug then
         print('^3[Luudi_ParkingFine] Looking up vehicle plate: ' .. vehiclePlate .. '^7')
     end
     
-    -- Slå nummerplade op i owned_vehicles for at finde ejer
-    -- TRIM og sammenlign uden mellemrum for at være sikker
     local query = [[
         SELECT owner FROM owned_vehicles 
         WHERE REPLACE(plate, ' ', '') = ?
@@ -86,7 +74,6 @@ RegisterNetEvent('luudi_parkingfine:server:issueFine', function(data)
         local targetIdentifier = result[1].owner
         local targetPlayer = ESX.GetPlayerFromIdentifier(targetIdentifier)
         
-        -- Valider data
         local amount = tonumber(data.amount)
         if not amount or amount < Config.MinFineAmount or amount > Config.MaxFineAmount then
             TriggerClientEvent('ox_lib:notify', source, {
@@ -100,10 +87,8 @@ RegisterNetEvent('luudi_parkingfine:server:issueFine', function(data)
         
         local reason = tostring(data.reason) or 'Parkeringsbøde'
         
-        -- Opret bøde direkte i database (virker for både online og offline spillere)
         local paid = 0
         
-        -- Indsæt bøde i billing database
         local billingQuery = [[
             INSERT INTO billing (identifier, sender, target_type, target, label, amount) 
             VALUES (?, ?, ?, ?, ?, ?)
@@ -122,7 +107,6 @@ RegisterNetEvent('luudi_parkingfine:server:issueFine', function(data)
             end
             
             if billingId then
-                -- Notificer target spiller hvis de er online
                 if targetPlayer then
                     TriggerClientEvent('ox_lib:notify', targetPlayer.source, {
                         title = 'Parkeringsbøde modtaget',
@@ -131,7 +115,6 @@ RegisterNetEvent('luudi_parkingfine:server:issueFine', function(data)
                         duration = Config.NotificationDuration * 2
                     })
                 else
-                    -- Notificer issuer at spilleren er offline
                     TriggerClientEvent('ox_lib:notify', source, {
                         title = 'Ejer offline',
                         description = 'Køretøjets ejer er offline. Bøden vil vente når de logger ind.',
@@ -142,7 +125,6 @@ RegisterNetEvent('luudi_parkingfine:server:issueFine', function(data)
             end
         end)
         
-        -- Indsæt bøde i database
         local insertQuery = [[
             INSERT INTO luudi_parkingfines 
             (identifier, issuer, issuer_name, vehicle_plate, amount, reason, paid, auto_deducted, created_at) 
@@ -157,10 +139,9 @@ RegisterNetEvent('luudi_parkingfine:server:issueFine', function(data)
             amount,
             reason,
             paid,
-            0 -- auto_deducted altid 0 da ESX billing håndterer betalinger
+            0
         }, function(insertId)
             if insertId then
-                -- Log handlingen
                 LogAction('FINE_ISSUED', source, {
                     fineId = insertId,
                     target = targetIdentifier,
@@ -169,13 +150,11 @@ RegisterNetEvent('luudi_parkingfine:server:issueFine', function(data)
                     reason = reason
                 })
                 
-                -- Send notifikationer
                 TriggerClientEvent('luudi_parkingfine:client:fineIssued', source, {
                     amount = amount,
                     targetName = targetPlayer and targetPlayer.getName() or 'Ukendt ejer'
                 })
                 
-                -- Success notifikation til issuer
                 TriggerClientEvent('ox_lib:notify', source, {
                     title = 'Bøde udstedt',
                     description = string.format('Parkeringsbøde på $%d er udstedt til køretøj %s%s', 
@@ -187,7 +166,6 @@ RegisterNetEvent('luudi_parkingfine:server:issueFine', function(data)
                     duration = Config.NotificationDuration
                 })
             else
-                -- Fejl ved indsættelse i database
                 TriggerClientEvent('ox_lib:notify', source, {
                     title = 'Database fejl',
                     description = 'Der opstod en fejl ved udstedelse af bøden',
@@ -199,9 +177,7 @@ RegisterNetEvent('luudi_parkingfine:server:issueFine', function(data)
     end)
 end)
 
--- Callback til at hente alle bøder (kun for autoriserede)
 ESX.RegisterServerCallback('luudi_parkingfine:server:getFines', function(source, cb)
-    -- Valider autorisation
     if not IsPlayerAuthorized(source) then
         cb({})
         return
@@ -218,7 +194,6 @@ ESX.RegisterServerCallback('luudi_parkingfine:server:getFines', function(source,
     end)
 end)
 
--- Callback til at hente bøder for en specifik spiller
 ESX.RegisterServerCallback('luudi_parkingfine:server:getPlayerFines', function(source, cb, identifier)
     local xPlayer = ESX.GetPlayerFromId(source)
     
@@ -227,7 +202,6 @@ ESX.RegisterServerCallback('luudi_parkingfine:server:getPlayerFines', function(s
         return
     end
     
-    -- Spillere kan kun se deres egne bøder, medmindre de er autoriserede
     local targetIdentifier = identifier or xPlayer.identifier
     
     if targetIdentifier ~= xPlayer.identifier and not IsPlayerAuthorized(source) then
@@ -246,7 +220,6 @@ ESX.RegisterServerCallback('luudi_parkingfine:server:getPlayerFines', function(s
     end)
 end)
 
--- Event til at betale en bøde
 RegisterNetEvent('luudi_parkingfine:server:payFine', function(fineId)
     local source = source
     local xPlayer = ESX.GetPlayerFromId(source)
@@ -255,7 +228,6 @@ RegisterNetEvent('luudi_parkingfine:server:payFine', function(fineId)
         return
     end
     
-    -- Valider at spilleren er autoriseret (kun politi kan markere som betalt manuelt)
     if not IsPlayerAuthorized(source) then
         TriggerClientEvent('ox_lib:notify', source, {
             title = 'Ingen adgang',
@@ -266,7 +238,6 @@ RegisterNetEvent('luudi_parkingfine:server:payFine', function(fineId)
         return
     end
     
-    -- Hent bøde fra database
     local query = [[
         SELECT * FROM luudi_parkingfines 
         WHERE id = ?
@@ -295,7 +266,6 @@ RegisterNetEvent('luudi_parkingfine:server:payFine', function(fineId)
             return
         end
         
-        -- Opdater bøde som betalt
         local updateQuery = [[
             UPDATE luudi_parkingfines 
             SET paid = 1, paid_at = NOW() 
@@ -304,7 +274,6 @@ RegisterNetEvent('luudi_parkingfine:server:payFine', function(fineId)
         
         MySQL.update(updateQuery, {fineId}, function(affectedRows)
             if affectedRows > 0 then
-                -- Log handlingen
                 LogAction('FINE_PAID', source, {
                     fineId = fineId,
                     paidBy = xPlayer.identifier
@@ -328,7 +297,6 @@ RegisterNetEvent('luudi_parkingfine:server:payFine', function(fineId)
     end)
 end)
 
--- Event til at spillere selv kan betale deres bøder
 RegisterNetEvent('luudi_parkingfine:server:payOwnFine', function(fineId)
     local source = source
     local xPlayer = ESX.GetPlayerFromId(source)
@@ -337,7 +305,6 @@ RegisterNetEvent('luudi_parkingfine:server:payOwnFine', function(fineId)
         return
     end
     
-    -- Hent bøde fra database
     local query = [[
         SELECT * FROM luudi_parkingfines 
         WHERE id = ? AND identifier = ?
@@ -366,7 +333,6 @@ RegisterNetEvent('luudi_parkingfine:server:payOwnFine', function(fineId)
             return
         end
         
-        -- Tjek om spilleren har nok penge
         local account = xPlayer.getAccount(Config.DefaultCurrency)
         
         if not account or account.money < fine.amount then
@@ -379,7 +345,6 @@ RegisterNetEvent('luudi_parkingfine:server:payOwnFine', function(fineId)
             return
         end
         
-        -- Træk penge og opdater bøde
         xPlayer.removeAccountMoney(Config.DefaultCurrency, fine.amount)
         
         local updateQuery = [[
@@ -390,7 +355,6 @@ RegisterNetEvent('luudi_parkingfine:server:payOwnFine', function(fineId)
         
         MySQL.update(updateQuery, {fineId}, function(affectedRows)
             if affectedRows > 0 then
-                -- Log handlingen
                 LogAction('FINE_PAID_BY_PLAYER', source, {
                     fineId = fineId,
                     amount = fine.amount
@@ -403,7 +367,6 @@ RegisterNetEvent('luudi_parkingfine:server:payOwnFine', function(fineId)
                     duration = Config.NotificationDuration
                 })
             else
-                -- Refunder hvis opdatering fejlede
                 xPlayer.addAccountMoney(Config.DefaultCurrency, fine.amount)
                 
                 TriggerClientEvent('ox_lib:notify', source, {
@@ -417,7 +380,6 @@ RegisterNetEvent('luudi_parkingfine:server:payOwnFine', function(fineId)
     end)
 end)
 
--- Kommando til at åbne parkeringsbøde menu (kun for autoriserede)
 RegisterCommand('parkingfine', function(source, args, rawCommand)
     if IsPlayerAuthorized(source) then
         TriggerClientEvent('luudi_parkingfine:client:openMenu', source)
@@ -431,7 +393,6 @@ RegisterCommand('parkingfine', function(source, args, rawCommand)
     end
 end, false)
 
--- Kommando til at betale egne bøder
 RegisterCommand('payfine', function(source, args, rawCommand)
     local fineId = tonumber(args[1])
     
@@ -448,7 +409,6 @@ RegisterCommand('payfine', function(source, args, rawCommand)
     TriggerEvent('luudi_parkingfine:server:payOwnFine', fineId, source)
 end, false)
 
--- Kommando til at se egne bøder
 RegisterCommand('myfines', function(source, args, rawCommand)
     local xPlayer = ESX.GetPlayerFromId(source)
     
@@ -488,7 +448,6 @@ RegisterCommand('myfines', function(source, args, rawCommand)
     end)
 end, false)
 
--- Export til eksterne scripts
 exports('GetParkingFineForPlayer', function(identifier)
     local query = [[
         SELECT * FROM luudi_parkingfines 
@@ -521,5 +480,4 @@ exports('GetFineById', function(fineId)
     return result and result[1] or nil
 end)
 
--- Print ved resource start
 print('^2[Luudi_ParkingFine]^7 Server-side loaded successfully')
