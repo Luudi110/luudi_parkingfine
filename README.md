@@ -22,6 +22,7 @@ Dette resource kræver følgende dependencies:
 
 - [es_extended](https://github.com/esx-framework/esx_core) - ESX Framework
 - [ox_lib](https://github.com/overextended/ox_lib) - UI library
+- [ox_target](https://github.com/CommunityOx/ox_target) - Eye Target
 - [oxmysql](https://github.com/overextended/oxmysql) - MySQL driver
 - [esx_billing](https://github.com/esx-framework/esx_billing) - ESX Billing system (v1.0)
 
